@@ -1,0 +1,99 @@
+---
+title: "Linear models"
+author: "Jessica Flynn"
+date: "11/19/2020"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(p8105.datasets)
+
+set.seed(1)
+
+
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.asp = .6,
+  out.width = "90%"
+)
+```
+
+## Import Data
+
+```{r}
+data("nyc_airbnb")
+
+nyc_airbnb = 
+  nyc_airbnb %>% 
+  mutate(stars = review_scores_location / 2) %>% 
+  rename(
+    borough = neighbourhood_group,
+    neighborhood = neighbourhood) %>% 
+  filter(borough != "Staten Island") %>% 
+  select(price, stars, borough, neighborhood, room_type)
+```
+
+## Fit a model
+
+```{r}
+fit = lm(price ~ stars + borough, data = nyc_airbnb)
+```
+
+Let's look at the results
+
+```{r}
+fit 
+summary(fit)
+summary(fit)$coef
+coef(fit)
+#fitted.values(fit)
+```
+
+Let's look at the results better
+
+```{r}
+fit %>% 
+  broom::glance()
+
+fit %>% 
+  broom::tidy()
+
+
+fit %>% 
+  broom::tidy() %>% 
+  select(term, estimate, p.value) %>% 
+  mutate(term = str_replace(term, "^borough", "Borough: ")) %>% 
+  knitr::kable(digits = 3)
+```
+
+## Be in control of factors 
+
+```{r}
+nyc_airbnb = 
+  nyc_airbnb %>% 
+  mutate(
+    borough = fct_infreq(borough),
+    room_type = fct_infreq(room_type))
+
+fit = lm(price ~ stars + borough, data = nyc_airbnb)
+
+
+fit %>% 
+  broom::tidy()
+```
+
