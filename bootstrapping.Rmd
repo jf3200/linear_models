@@ -96,3 +96,100 @@ boot_sample(sim_df_nonconst) %>%
   stat_smooth(method = "lm")
 ```
 
+## Draw many samples
+
+```{r}
+boot_straps = 
+  tibble(
+    strap_number = 1:1000,
+    strap_sample = rerun(1000, boot_sample(sim_df_nonconst))
+  )
+```
+
+Can I run my analysis on these? YES!
+
+```{r}
+bootstrap_results = 
+  boot_straps %>% 
+  mutate(
+    models = map(strap_sample, ~lm(y ~ x, data = .x) ),
+    results = map(models, broom::tidy)) %>% 
+  select(-strap_sample, -models) %>% 
+  unnest(results) 
+```
+
+What do I have now?
+
+```{r}
+bootstrap_results %>% 
+  group_by(term) %>% 
+  summarize(
+    boot_mean = mean(estimate),
+    boot_se = sd(estimate)) %>% 
+  knitr::kable(digits = 3)
+```
+
+Look at this distribution
+
+```{r}
+bootstrap_results %>% 
+  filter(term == "x") %>%
+  ggplot(aes(x = estimate)) + 
+    geom_density()
+```
+
+Construct bootstrap confidence interval
+
+```{r}
+bootstrap_results %>% 
+  group_by(term) %>% 
+  summarize(
+    ci_lower = quantile(estimate, 0.025), 
+    ci_upper = quantile(estimate, 0.975))
+
+```
+
+## Bootstrap using modelr
+
+Can we simplify anything...
+
+
+```{r}
+boot_straps = 
+  sim_df_nonconst %>% 
+  modelr::bootstrap(n = 1000)
+
+boot_straps$strap[[1]]
+```
+
+
+
+```{r}
+sim_df_nonconst %>% 
+  modelr::bootstrap(n = 1000, id = "strap_number") %>% 
+  mutate(
+    models = map(strap, ~lm(y ~ x, data = .x) ),
+    results = map(models, broom::tidy)) %>% 
+  select(-strap, -models) %>% 
+  unnest(results) %>% 
+  group_by(term) %>% 
+  summarize(
+    boot_mean = mean(estimate),
+    boot_se = sd(estimate))
+```
+
+
+```{r}
+sim_df_const %>% 
+  modelr::bootstrap(n = 1000, id = "strap_number") %>% 
+  mutate(
+    models = map(strap, ~lm(y ~ x, data = .x) ),
+    results = map(models, broom::tidy)) %>% 
+  select(-strap, -models) %>% 
+  unnest(results) %>% 
+  group_by(term) %>% 
+  summarize(
+    boot_mean = mean(estimate),
+    boot_se = sd(estimate))
+```
+
