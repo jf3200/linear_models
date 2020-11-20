@@ -254,3 +254,95 @@ anova(fit_null, fit_alt) %>%
     ##    <dbl>       <dbl> <dbl>     <dbl>     <dbl>      <dbl>
     ## 1  30528 1030861841.    NA       NA        NA  NA        
     ## 2  30525 1005601724.     3 25260117.      256.  7.84e-164
+
+## Nest data, fit models
+
+This is pretty formal and also complicated
+
+``` r
+nyc_airbnb %>% 
+  lm(price ~ stars * borough + room_type * borough, data = .) %>% 
+  broom::tidy() %>% 
+  knitr::kable(digits = 3)
+```
+
+| term                                   |  estimate | std.error | statistic | p.value |
+| :------------------------------------- | --------: | --------: | --------: | ------: |
+| (Intercept)                            |    95.694 |    19.184 |     4.988 |   0.000 |
+| stars                                  |    27.110 |     3.965 |     6.838 |   0.000 |
+| boroughBrooklyn                        |  \-26.066 |    25.080 |   \-1.039 |   0.299 |
+| boroughQueens                          |   \-4.118 |    40.674 |   \-0.101 |   0.919 |
+| boroughBronx                           |   \-5.627 |    77.808 |   \-0.072 |   0.942 |
+| room\_typePrivate room                 | \-124.188 |     2.996 |  \-41.457 |   0.000 |
+| room\_typeShared room                  | \-153.635 |     8.692 |  \-17.676 |   0.000 |
+| stars:boroughBrooklyn                  |   \-6.139 |     5.237 |   \-1.172 |   0.241 |
+| stars:boroughQueens                    |  \-17.455 |     8.539 |   \-2.044 |   0.041 |
+| stars:boroughBronx                     |  \-22.664 |    17.099 |   \-1.325 |   0.185 |
+| boroughBrooklyn:room\_typePrivate room |    31.965 |     4.328 |     7.386 |   0.000 |
+| boroughQueens:room\_typePrivate room   |    54.933 |     7.459 |     7.365 |   0.000 |
+| boroughBronx:room\_typePrivate room    |    71.273 |    18.002 |     3.959 |   0.000 |
+| boroughBrooklyn:room\_typeShared room  |    47.797 |    13.895 |     3.440 |   0.001 |
+| boroughQueens:room\_typeShared room    |    58.662 |    17.897 |     3.278 |   0.001 |
+| boroughBronx:room\_typeShared room     |    83.089 |    42.451 |     1.957 |   0.050 |
+
+More exploratory…but maybe easier to understand
+
+``` r
+nyc_airbnb %>% 
+  nest(data = -borough) %>% 
+  mutate(
+    models = map(data, ~lm(price ~ stars, data = .x)),
+    results = map(models, broom::tidy)) %>% 
+  select(-data, -models) %>% 
+  unnest(results) %>% 
+  filter(term == "stars")
+```
+
+    ## # A tibble: 4 x 6
+    ##   borough   term  estimate std.error statistic  p.value
+    ##   <fct>     <chr>    <dbl>     <dbl>     <dbl>    <dbl>
+    ## 1 Bronx     stars     4.91      4.10      1.20 2.31e- 1
+    ## 2 Queens    stars    15.8       5.63      2.81 5.06e- 3
+    ## 3 Brooklyn  stars    28.0       3.10      9.02 2.13e-19
+    ## 4 Manhattan stars    43.3       4.78      9.07 1.39e-19
+
+``` r
+nyc_airbnb %>% 
+  nest(data = -borough) %>% 
+  mutate(
+    models = map(data, ~lm(price ~ stars + room_type, data = .x)),
+    results = map(models, broom::tidy)) %>% 
+  select(-data, -models) %>% 
+  unnest(results) %>% 
+  filter(term != "(Intercept)") %>% 
+  select(borough, term, estimate) %>% 
+   pivot_wider(
+    names_from = borough, values_from = estimate) %>% 
+  knitr::kable(digits = 3)
+```
+
+| term                   |    Bronx |   Queens |  Brooklyn | Manhattan |
+| :--------------------- | -------: | -------: | --------: | --------: |
+| stars                  |    4.446 |    9.654 |    20.971 |    27.110 |
+| room\_typePrivate room | \-52.915 | \-69.255 |  \-92.223 | \-124.188 |
+| room\_typeShared room  | \-70.547 | \-94.973 | \-105.839 | \-153.635 |
+
+Let’s nest even more
+
+``` r
+nyc_airbnb %>% 
+  filter(borough == "Manhattan") %>% 
+  nest(data = -neighborhood) %>% 
+  mutate(
+    models = map(data, ~lm(price ~ stars + room_type, data = .x)),
+    results = map(models, broom::tidy)) %>% 
+  select(-data, -models) %>% 
+  unnest(results) %>% 
+  filter(str_detect(term, "room_type")) %>% 
+  ggplot(aes(x = neighborhood, y =  estimate)) + 
+  geom_point() + 
+  facet_wrap(~term) + 
+  theme(axis.text.x = element_text(angle = 70, hjust = 1))
+```
+
+<img src="linear_models_files/figure-gfm/unnamed-chunk-13-1.png" width="90%" />
